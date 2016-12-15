@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <!-- Title -->
+    
+    <title>
+        runtime探秘-Method Swizzling的实现 | 技术杂货铺
+    </title>
+    
+    <!-- Favicons -->
+    <link rel="icon shortcut" type="image/ico" href="/img/favicon.png">
+    <link rel="icon" sizes="192x192" href="/img/favicon.png">
+    <link rel="apple-touch-icon" href="/img/favicon.png">
+    
+    <!-- Meta & INfo -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0097A7">
+    <meta name="author" content="kexuan">
+    <meta name="description" content="null">
+    <meta name="keywords" content="null">
+    
+    <!--iOS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-title" content="Title">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="MobileOptimized" content="480">
+    
+    <!-- Add to homescreen for Chrome on Android -->
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <!-- Add to homescreen for Safari on iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="技术杂货铺">
+    
+    <!-- The Open Graph protocol -->
+    <meta property="og:url" content="http://yoursite.com">
+    <meta property="og:type" content="blog">
+    <meta property="og:title" content="runtime探秘-Method Swizzling的实现 | 技术杂货铺">
+    <meta property="og:description" content="null">
+    
+     <!--[if lte IE 9]>
+        <link rel="stylesheet" href="/css/ie-blocker.css">
+        
+        
+            <script src="/js/ie-blocker.zhCN.js"></script>
+        
+    <![endif]-->
+    
+    <!-- Import CSS -->
+    <link rel="stylesheet" href="/css/material.min.css">
+    <link rel="stylesheet" href="/css/style.min.css">
+    <!-- Config CSS -->
+
+
+<!-- Other Styles -->
+<style>
+	body, html{
+		font-family: Roboto, "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+	}
+	
+    a{
+        color: #00838F
+    }
+    
+    .mdl-card__media,
+    #search-label,
+    #search-form-label:after,
+    #scheme-Paradox .hot_tags-count,
+    #scheme-Paradox .sidebar_archives-count,
+    #scheme-Paradox .sidebar-colored .sidebar-header,
+    #scheme-Paradox .sidebar-colored .sidebar-badge{
+        background-color: #0097A7 !important
+    }
+    
+	/* Sidebar User Drop Down Menu Text Color */
+	#scheme-Paradox .sidebar-colored .sidebar-nav>.dropdown>.dropdown-menu>li>a:hover,
+    #scheme-Paradox .sidebar-colored .sidebar-nav>.dropdown>.dropdown-menu>li>a:focus{
+        color: #0097A7 !important
+    }
+    
+    #post_entry-right-info,
+    .sidebar-colored .sidebar-nav li:hover > a,
+    .sidebar-colored .sidebar-nav li:hover > a i,
+    .sidebar-colored .sidebar-nav li > a:hover,
+    .sidebar-colored .sidebar-nav li > a:hover i,
+    .sidebar-colored .sidebar-nav li > a:focus i,
+    .sidebar-colored .sidebar-nav > .open > a,
+    .sidebar-colored .sidebar-nav > .open > a:hover,
+    .sidebar-colored .sidebar-nav > .open > a:focus,
+    #ds-reset #ds-ctx .ds-ctx-entry .ds-ctx-head a{
+        color: #0097A7 !important
+    }
+    
+    .toTop{
+        background: #757575 !important
+    }
+		
+	.material-layout .material-post>.material-nav,
+	.material-layout .material-index>.material-nav,
+	.material-nav a{
+		color: #757575;
+	}
+		
+	#scheme-Paradox .MD-burger-layer {
+		background-color: #757575;
+	}
+
+	#scheme-Paradox #post-toc-trigger-btn{
+		color: #757575;
+	}
+	
+	.post-toc a:hover{
+		color: #00838F;
+		text-decoration: underline;
+	}
+</style>
+
+
+<!-- Theme Background Related-->
+
+    <style>
+        body{
+            background-color: #F5F5F5
+        }
+		
+		/* blog_info bottom background */
+        #scheme-Paradox .material-layout .something-else .mdl-card__supporting-text{
+            background-color: #fff;
+        }
+    </style>
+
+
+
+
+<!-- Fade Effect -->
+
+    <style>
+        .fade {
+            transition: all 800ms linear;
+            -webkit-transform: translate3d(0,0,0);
+            -moz-transform: translate3d(0,0,0);
+            -ms-transform: translate3d(0,0,0);
+            -o-transform: translate3d(0,0,0);
+            transform: translate3d(0,0,0);
+            opacity: 1;
+        }
+
+        .fade.out{
+            opacity: 0;
+        }
+    </style>
+
+	<script src="/js/jquery.min.js"></script>
+	
+	<link rel="stylesheet" href="/css/highlight/solarized-white.css">
+	
+	<!-- UC Browser Compatible-->
+	<script>
+		var agent = navigator.userAgent.toLowerCase();
+		if(agent.indexOf('ucbrowser')>0) {
+			document.write('<link rel="stylesheet" href="/css/uc.css">');
+		   alert('由于 UC 浏览器使用极旧的内核，而本网站使用了一些新的特性。\n为了您能更好的浏览，推荐使用 Chrome 或 Firefox 浏览器。');
+		}
+	</script>
+    
+    <!-- Custom Head -->
+    
+</head>
+	
+	
+
+    <body id="scheme-Paradox">
+
+		
+        <div class="material-layout  mdl-js-layout has-drawer is-upgraded">
+				
+			
+			
+            <!-- Main Container -->
+            <main class="material-layout__content" id="main">
+				
+                <!-- Top Anchor -->
+                <div id="top"></div>
+				
+				
+                <!-- Hamburger Button -->
+                <button class="MD-burger-icon sidebar-toggle">
+                    <span class="MD-burger-layer"></span>
+                </button>
+				
+				
+                <!-- Post TOC -->
+
+    
+	<!-- Back Button -->
+<!--
+	<div class="material-back" id="backhome-div" tabindex="0">
+		<a class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--icon" href="#" onclick="window.history.back();return false;" target="_self" role="button" data-upgraded=",MaterialButton,MaterialRipple">
+			<i class="material-icons" role="presentation">arrow_back</i>
+			<span class="mdl-button__ripple-container">
+				<span class="mdl-ripple"></span>
+			</span>
+		</a>
+	</div>			
+-->
+	<!-- Left aligned menu below button -->
+	<button id="post-toc-trigger-btn"
+			class="mdl-button mdl-js-button mdl-button--icon">
+	  <i class="material-icons">format_list_numbered</i>
+	</button>
+
+	<ul class="post-toc-wrap mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect"
+		for="post-toc-trigger-btn">
+			
+			<ol class="post-toc"><li class="post-toc-item post-toc-level-2"><a class="post-toc-link" href="#runtime探秘-Method-Swizzling的实现"><span class="post-toc-number">1.</span> <span class="post-toc-text">runtime探秘-Method Swizzling的实现</span></a></li><li class="post-toc-item post-toc-level-2"><a class="post-toc-link" href="#SEL"><span class="post-toc-number">2.</span> <span class="post-toc-text">SEL</span></a></li><li class="post-toc-item post-toc-level-2"><a class="post-toc-link" href="#method"><span class="post-toc-number">3.</span> <span class="post-toc-text">method</span></a></li><li class="post-toc-item post-toc-level-2"><a class="post-toc-link" href="#Method-Swizzling使用"><span class="post-toc-number">4.</span> <span class="post-toc-text">Method Swizzling使用</span></a></li><li class="post-toc-item post-toc-level-2"><a class="post-toc-link" href="#后记"><span class="post-toc-number">5.</span> <span class="post-toc-text">后记</span></a></li></ol>
+		
+<!--			<li class="mdl-menu__item">Some Action</li>-->
+	</ul>
+
+
+
+<!-- Layouts -->
+
+    <!-- Post Module -->
+    <div class="material-post_container">
+		
+        <div class="material-post mdl-grid">
+            <div class="mdl-card mdl-shadow--4dp mdl-cell mdl-cell--12-col">
+
+                <!-- Post Header(Thumbnail & Title) -->
+                
+	<!-- Paradox Post Header -->
+	
+		
+			<!-- Random Thumbnail -->
+			<div class="post_thumbnail-random mdl-card__media mdl-color-text--grey-50">
+				<script>
+    
+    var randomNum;
+    randomNum = Math.floor(Math.random() * 5 + 1);
+    
+    $(".post_thumbnail-random").css('background-image', 'url(' + '/img/random/' + randomNum + '.png' + ')');
+    
+</script>
+
+		
+	
+        <p class="article-headline-p">
+            runtime探秘-Method Swizzling的实现
+        </p>
+    </div>
+
+	
+
+				
+				
+					<!-- Paradox Post Info -->
+					<div class="mdl-color-text--grey-700 mdl-card__supporting-text meta">
+    
+    <!-- Author Avatar -->
+    <div id="author-avatar">
+        <img src="/img/avatar.png" width="44px" height="44px" alt="Author Avatar"/>
+    </div>
+    <!-- Author Name & Date -->
+    <div>
+        <strong>kexuan</strong>
+        <span>12月 15, 2016</span>
+    </div>
+    
+    <div class="section-spacer"></div>
+	
+    <!-- Favorite -->
+<!--
+    <button id="article-functions-like-button" class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--icon btn-like">
+        <i class="material-icons" role="presentation">favorite</i>
+        <span class="visuallyhidden">favorites</span>
+    </button>
+-->
+    
+    <!-- Tags (bookmark) -->
+    <button id="article-functions-viewtags-button" class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--icon">
+        <i class="material-icons" role="presentation">bookmark</i>
+        <span class="visuallyhidden">bookmark</span>
+    </button>
+    <ul class="mdl-menu mdl-menu--bottom-right mdl-js-menu mdl-js-ripple-effect" for="article-functions-viewtags-button">
+        <li class="mdl-menu__item">
+        <a class="post_tag-link" href="/tags/runtime/">runtime</a>
+    </ul>
+    
+    <!-- Share -->
+    <button id="article-fuctions-share-button" class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--icon">
+    <i class="material-icons" role="presentation">share</i>
+    <span class="visuallyhidden">share</span>
+</button>
+<ul class="mdl-menu mdl-menu--bottom-right mdl-js-menu mdl-js-ripple-effect" for="article-fuctions-share-button">
+    
+    
+    
+    
+    
+    <!-- Share Twitter -->
+    <a class="post_share-link" href="https://twitter.com/intent/tweet?text=runtime探秘-Method Swizzling的实现&url=http://yoursite.com//2016/12/15/runtime探秘-Method-Swizzling的实现/index.html&via=kexuan" target="_blank">
+        <li class="mdl-menu__item">
+            分享到 Twitter
+        </li>
+    </a>
+    
+    <!-- Share Google+ -->
+    <a class="post_share-link" href="https://plus.google.com/share?url=http://yoursite.com//2016/12/15/runtime探秘-Method-Swizzling的实现/index.html" target="_blank">
+        <li class="mdl-menu__item">
+            分享到 Google+
+        </li>
+    </a>
+    
+    <!-- Share Weibo -->
+    <a class="post_share-link" href="http://service.weibo.com/share/share.php?appkey=&title=runtime探秘-Method Swizzling的实现&url=http://yoursite.com//2016/12/15/runtime探秘-Method-Swizzling的实现/index.html&pic=&searchPic=false&style=simple" target="_blank">
+        <li class="mdl-menu__item">
+            分享到微博
+        </li>
+    </a>
+</ul>
+</div>
+				
+
+                <!-- Post Content -->
+                <div id="post-content" class="markdown-Github mdl-color-text--grey-700 mdl-card__supporting-text fade out">
+	
+		<h2 id="runtime探秘-Method-Swizzling的实现"><a href="#runtime探秘-Method-Swizzling的实现" class="headerlink" title="runtime探秘-Method Swizzling的实现"></a>runtime探秘-Method Swizzling的实现</h2><p>写这篇文章原因是起源是一个问题，一日做移动安全的朋友问的hook这个黑魔法在iOS的实现原理，在解答问题的过程中发现，其中涉及多个知识点。为防止日后忘记，特撰写此文。</p>
+<h2 id="SEL"><a href="#SEL" class="headerlink" title="SEL"></a>SEL</h2><p>做过iOS开发的对此可能都不陌生</p>
+<p><img src="../../../../img/runtime/runtime_SEL.png" alt="runtime_SEL"> </p>
+<p>在objc/runtime.h中我们一睹它的真面目（如上图），是个指针。<br>说到这我们就不得不说一下OC里的关键字@selector，苹果官方是这样描述它的</p>
+<ul>
+<li>A selector is the name used to select a method to execute for an object, or the unique identifier that replaces the name when the source code is compiled. A selector by itself doesn’t do anything. It simply identifies a method. The only thing that makes the selector method name different from a plain string is that the compiler makes sure that selectors are unique. What makes a selector useful is that (in conjunction with the runtime) it acts like a dynamic function pointer that, for a given name, automatically points to the implementation of a method appropriate for whichever class it’s used with. Suppose you had a selector for the method run, and classes Dog, Athlete, and ComputerSimulation (each of which implemented a method run). The selector could be used with an instance of each of the classes to invoke its run method—even though the implementation might be different for each.<br><a href="https://developer.apple.com/library/content/documentation/General/Conceptual/DevPedia-CocoaCore/Selector.html" target="_blank" rel="external">原文·链接</a></li>
+</ul>
+<p>简而言之就是<strong>每个类都维护着一个方法表，通过@selector得到表里储存的方法指针（SEL）</strong>这样的设计是源于OC的语言性质<br>Objective-C在编译时，会依据每一个方法的名字、参数序列，生成一个唯一的整型标识(Int类型的地址)，这个标识就是SEL。</p>
+<p>这里要补充一句从C／C++转过来（比如我）可能会范一个错误，<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">- (void)setTest:(int)count;</div><div class="line">- (void)setTest:(double) count;</div></pre></td></tr></table></figure></p>
+<p>这样是不可以的，虽然在C++ 和C# 可以，但是在这里会报错，同类方法表内Selector无法重复。</p>
+<h2 id="method"><a href="#method" class="headerlink" title="method"></a>method</h2><p>这块要补充一个容易混淆的知识点</p>
+<p>###Selector<br>Selector（typedef struct objc_selector *SEL）:</p>
+<ul>
+<li>在运行时 Selectors 用来代表一个方法的名字。Selector 是一个在运行时被注册（或映射）的C类型字符串。Selector由编译器产生并且在当类被加载进内存时由运行时自动进行名字和实现的映射。</li>
+</ul>
+<p>###method<br>Method（typedef struct objc_method *Method）:</p>
+<p><img src="../../../../img/runtime/objc_method_list.png" alt="method"> </p>
+<ul>
+<li>方法是一个不透明的用来代表一个方法的定义的类型。</li>
+</ul>
+<p>###implementation<br>Implementation（typedef id (*IMP)(id, SEL,…)）:</p>
+<ul>
+<li>这个数据类型指向一个方法的实现的最开始的地方。该方法为当前CPU架构使用标准的C方法调用来实现。该方法的第一个参数指向调用方法的自身（即内存中类的实例对象，若是调用类方法，该指针则是指向元类对象metaclass）。第二个参数是这个方法的名字selector，该方法的真正参数紧随其后。</li>
+</ul>
+<p>理解 selector, method, implementation 这三个概念之间关系的最好方式是：在运行时，类（Class）维护了一个消息分发列表来解决消息的正确发送。每一个消息列表的入口是一个方法（Method），这个方法映射了一对键值对，其中键值是这个方法的名字 selector（SEL），值是指向这个方法实现的函数指针 implementation（IMP）。</p>
+<p>好的补充的知识点讲完了，下面进入正题</p>
+<h2 id="Method-Swizzling使用"><a href="#Method-Swizzling使用" class="headerlink" title="Method Swizzling使用"></a>Method Swizzling使用</h2><p>书归正传咱们来看看黑魔法的核心实现</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">Method class_getInstanceMethod(Class cls, SEL sel)</div><div class="line">&#123;</div><div class="line">    if (!cls  ||  !sel) return nil;</div><div class="line"></div><div class="line">    lookUpImpOrNil(cls, sel, nil, </div><div class="line">                   NO/*initialize*/, NO/*cache*/, YES/*resolver*/);</div><div class="line"></div><div class="line">    return _class_getMethod(cls, sel);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>我们可以看非空判断后进入了lookUpImpOrNil</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line">* lookUpImpOrNil.</div><div class="line">* Like lookUpImpOrForward, but returns nil instead of _objc_msgForward_impcache</div><div class="line">* </div><div class="line">IMP lookUpImpOrNil(Class cls, SEL sel, id inst, </div><div class="line">                   bool initialize, bool cache, bool resolver)</div><div class="line">&#123;</div><div class="line">    IMP imp = lookUpImpOrForward(cls, sel, inst, initialize, cache, resolver);</div><div class="line">    if (imp == _objc_msgForward_impcache) return nil;</div><div class="line">    else return imp;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>在这我们看到灵魂人物lookUpImpOrForward,Objc_msgSend的实现基石</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div><div class="line">77</div><div class="line">78</div><div class="line">79</div><div class="line">80</div><div class="line">81</div><div class="line">82</div><div class="line">83</div><div class="line">84</div><div class="line">85</div><div class="line">86</div><div class="line">87</div><div class="line">88</div><div class="line">89</div><div class="line">90</div></pre></td><td class="code"><pre><div class="line">IMP lookUpImpOrForward(Class cls, SEL sel, id inst, </div><div class="line">                       bool initialize, bool cache, bool resolver) &#123;</div><div class="line">    Class curClass;</div><div class="line">    IMP imp = nil;</div><div class="line">    Method meth;</div><div class="line">    bool triedResolver = NO;</div><div class="line"></div><div class="line">    runtimeLock.assertUnlocked();</div><div class="line"></div><div class="line">    // 检查是否添加缓存锁，如果没有进行缓存查询。</div><div class="line">    // 查到便返回IMP指针</div><div class="line">    if (cache) &#123;</div><div class="line">        imp = cache_getImp(cls, sel);</div><div class="line">        if (imp) return imp;</div><div class="line">    &#125;</div><div class="line">    // 通过调用realizeClass方法，分配可读写`class_rw_t`的空间</div><div class="line">    if (!cls-&gt;isRealized()) &#123;</div><div class="line">        rwlock_writer_t lock(runtimeLock);</div><div class="line">        realizeClass(cls);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    // 倘若未进行初始化，则初始化</div><div class="line">    if (initialize  &amp;&amp;  !cls-&gt;isInitialized()) &#123;</div><div class="line">        _class_initialize (_class_getNonMetaClass(cls, inst));</div><div class="line">    &#125;</div><div class="line">    // 保证方法查询，并进行缓存填充(cache-fill)</div><div class="line">      retry:</div><div class="line">    runtimeLock.read();</div><div class="line"></div><div class="line">    // 是否忽略GC垃圾回收机制（仅用在macOS中）</div><div class="line">    if (ignoreSelector(sel)) &#123;</div><div class="line">        imp = _objc_ignored_method;</div><div class="line">        cache_fill(cls, sel, imp, inst);</div><div class="line">        goto done;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    // 当前类的缓存列表中进行查找</div><div class="line">    imp = cache_getImp(cls, sel);</div><div class="line">    if (imp) goto done;</div><div class="line"></div><div class="line">    // 从类的方法列表中进行查询</div><div class="line">    meth = getMethodNoSuper_nolock(cls, sel);</div><div class="line">    if (meth) &#123;</div><div class="line">        log_and_fill_cache(cls, meth-&gt;imp, sel, inst, cls);</div><div class="line">        imp = meth-&gt;imp;</div><div class="line">        goto done;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    // 从父类中循环遍历</div><div class="line">    curClass = cls;</div><div class="line">    while ((curClass = curClass-&gt;superclass)) &#123;</div><div class="line">        // 父类的缓存列表中查询</div><div class="line">        imp = cache_getImp(curClass, sel);</div><div class="line">        if (imp) &#123;</div><div class="line">            if (imp != (IMP)_objc_msgForward_impcache) &#123;</div><div class="line">                // 如果在父类中发现方法，则填充到该类缓存列表</div><div class="line">                log_and_fill_cache(cls, imp, sel, inst, curClass);</div><div class="line">                goto done;</div><div class="line">            &#125;</div><div class="line">            else &#123;</div><div class="line">                break;</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        // 从父类的方法列表中查询</div><div class="line">        meth = getMethodNoSuper_nolock(curClass, sel);</div><div class="line">        if (meth) &#123;</div><div class="line">            log_and_fill_cache(cls, meth-&gt;imp, sel, inst, curClass);</div><div class="line">            imp = meth-&gt;imp;</div><div class="line">            goto done;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    // 进入method resolve过程</div><div class="line">    if (resolver  &amp;&amp;  !triedResolver) &#123;</div><div class="line">        runtimeLock.unlockRead();</div><div class="line">        // 调用_class_resolveMethod，解析没有实现的方法</div><div class="line">        _class_resolveMethod(cls, sel, inst);</div><div class="line">        // 进行二次尝试</div><div class="line">        triedResolver = YES;</div><div class="line">        goto retry;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    // 没有找到方法，启动消息转发</div><div class="line">    imp = (IMP)_objc_msgForward_impcache;</div><div class="line">    cache_fill(cls, sel, imp, inst);</div><div class="line"> done:</div><div class="line">    runtimeLock.unlockRead();</div><div class="line">    return imp;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>我们把线程锁之类的抛开，来看看重点项目</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">if (cache) &#123;</div><div class="line">        methodPC = _cache_getImp(cls, sel);</div><div class="line">        if (methodPC) return methodPC;    </div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>当cache是YES时（为传入），就优先调用cache_getImp在缓存中搜索显然我们这里是NO，这个开关是为Objc_msgsend做的优化，以后写消息转发的时候再说。（_cache_getImp是用汇编写的，这理解不深入了，主要没看懂）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line">static method_t *</div><div class="line">getMethodNoSuper_nolock(Class cls, SEL sel)</div><div class="line">&#123;</div><div class="line">    runtimeLock.assertLocked();</div><div class="line"></div><div class="line">    assert(cls-&gt;isRealized());</div><div class="line">    // fixme nil cls? </div><div class="line">    // fixme nil sel?</div><div class="line"></div><div class="line">// 遍历所在类的methods，这里的methods是List链式类型，里面存放的都是指针</div><div class="line">    for (auto mlists = cls-&gt;data()-&gt;methods.beginLists(), </div><div class="line">              end = cls-&gt;data()-&gt;methods.endLists(); </div><div class="line">         mlists != end;</div><div class="line">         ++mlists)</div><div class="line">    &#123;</div><div class="line">        method_t *m = search_method_list(*mlists, sel);</div><div class="line">        if (m) return m;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    return nil;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>找到了具体IMP剩下的就是交换了</p>
+<p><img src="../../../../img/runtime/before.png" alt="before"></p>
+<p><img src="../../../../img/runtime/after.png" alt="after"> </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line">void method_exchangeImplementations(Method m1, Method m2)</div><div class="line">&#123;</div><div class="line">    if (!m1  ||  !m2) return;</div><div class="line"></div><div class="line">    rwlock_writer_t lock(runtimeLock);</div><div class="line"></div><div class="line">    //换位置</div><div class="line">    IMP m1_imp = m1-&gt;imp;</div><div class="line">    m1-&gt;imp = m2-&gt;imp;</div><div class="line">    m2-&gt;imp = m1_imp;</div><div class="line"></div><div class="line"></div><div class="line">    // RR/AWZ updates are slow because class is unknown</div><div class="line">    // Cache updates are slow because class is unknown</div><div class="line">    // fixme build list of classes whose Methods are known externally?</div><div class="line"></div><div class="line">    flushCaches(nil);</div><div class="line"></div><div class="line">    updateCustomRR_AWZ(nil, m1);</div><div class="line">    updateCustomRR_AWZ(nil, m2);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h2 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h2><p>深入runtime实现，让我受益匪浅，以前想当然的问题发现并非如此，写出来需要的知识储备，果然要比说出来多得多。过程中查了一些资料，才发现对于底层的认知还有许多不做，这文章可以说是站在大神的肩膀上完成的。文中runtime代码为（<a href="https://opensource.apple.com" target="_blank" rel="external">objc4-706</a>）.<br>谢谢</p>
+<p>参考：<br>    <a href="http://nshipster.com/method-swizzling/" target="_blank" rel="external">Method Swizzling</a></p>
+
+	
+	
+	
+	
+</div>
+				
+				
+
+                <!-- Post Comments -->
+                
+                    
+
+
+                
+            </div>
+
+            <!-- Post Prev & Next Nav -->
+            <nav class="material-nav mdl-color-text--grey-50 mdl-cell mdl-cell--12-col">
+    
+    <!-- Prev Nav -->
+    
+
+    <!-- Section Spacer -->
+    <div class="section-spacer"></div>
+
+    <!-- Next Nav -->
+    
+        <a href="/2016/12/14/再开技术分享blog/" id="post_nav-older" class="next-content">
+            旧篇
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <button class="mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--icon mdl-color--white mdl-color-text--grey-900" role="presentation">
+                <i class="material-icons">arrow_forward</i>
+            </button>
+        </a>
+    
+</nav>
+        </div>
+    </div>
+
+				
+				
+					<!-- Overlay For Active Sidebar -->
+<div class="sidebar-overlay "></div>
+
+<!-- Material sidebar -->
+<aside id="sidebar" class="sidebar sidebar-colored  sidebar-fixed-left" role="navigation">
+	<div id="sidebar-main">
+	    <!-- Sidebar Header -->
+		<div class="sidebar-header header-cover" style="background-image: url(/img/sidebar_header.png);">
+    <!-- Top bar -->
+    <div class="top-bar"></div>
+
+    <!-- Sidebar toggle button -->
+    <button type="button" class="sidebar-toggle mdl-button mdl-js-button mdl-js-ripple-effect mdl-button--icon" style="display: initial;" data-upgraded=",MaterialButton,MaterialRipple">
+    <i class="material-icons">clear_all</i>
+    <span class="mdl-button__ripple-container"><span class="mdl-ripple"></span></span></button>
+
+    <!-- Sidebar Avatar -->
+    <div class="sidebar-image">
+        <img src="/img/avatar.png" alt="kexuan's avatar">
+    </div>
+
+    <!-- Sidebar Email -->
+    <a data-toggle="dropdown" class="sidebar-brand" href="#settings-dropdown">
+        liudaox@gmail.com
+        <b class="caret"></b>
+    </a>
+</div>
+
+		<!-- Sidebar Navigation  -->
+		<ul class="nav sidebar-nav">
+    <!-- User dropdown  -->
+    <li class="dropdown">
+        <ul id="settings-dropdown" class="dropdown-menu">
+			
+                <li>
+                    <a href="#" target="_blank" title="Email Me">
+						<i class="material-icons sidebar-material-icons sidebar-indent-left1pc-element">email</i>
+                        Email Me
+                    </a>
+                </li>
+            
+        </ul>
+    </li>
+
+    <!-- Homepage -->
+    <li id="sidebar-first-li">
+        <a href="/" target="_self">
+            <i class="material-icons sidebar-material-icons">home</i>
+             主页
+        </a>
+    </li>
+
+    <!-- I'm Feeling Lucky -->
+<!--
+    <li class="dropdown">
+        <a href="" target="_self">
+            <i class="material-icons sidebar-material-icons">explore</i>
+             sidebar.imlucky
+        </a>
+    </li>
+-->
+
+	
+    <!-- Archives  -->
+    <li class="dropdown">
+        <a href="#" class="ripple-effect dropdown-toggle" data-toggle="dropdown">
+            <i class="material-icons sidebar-material-icons">inbox</i>
+             归档
+            <b class="caret"></b>
+        </a>
+        <ul class="dropdown-menu">
+            <li>
+            <a class="sidebar_archives-link" href="/archives/2016/12/">十二月 2016<span class="sidebar_archives-count">2</span></a>
+        </ul>
+    </li>
+
+    <!-- Divider -->
+    <li class="divider"></li>
+
+
+    <!-- Pages  -->
+	
+		<li>
+			<a href="/tags" title="标签云">
+				标签云
+			</a>
+		</li>
+	
+		<li>
+			<a href="/about" title="关于我">
+				关于我
+			</a>
+		</li>
+	
+
+    <!-- Article Numebr  -->
+    <li>
+        <a href="/archives">
+             文章总数
+             <span class="sidebar-badge">2</span>
+        </a>
+    </li>
+</ul>
+
+		<!-- Sidebar Divider -->
+		<div class="sidebar-divider"></div>
+
+		<!-- Sidebar Footer -->
+		<!-- 
+I'm glad you use this theme, the development is no so easy, I hope you can keep the copyright, I will thank you so much.
+If you still want to delete the copyrights, could you still retain the first one? Which namely "Theme Material"
+It will not impact the appearance and can give developers a lot of support :)
+
+很高兴您使用并喜欢该主题，开发不易 十分谢谢与希望您可以保留一下版权声明。
+如果您仍然想删除的话 能否只保留第一项呢？即 "Theme Material"
+它不会影响美观并可以给开发者很大的支持。 :) 
+-->
+
+<!-- Theme Material -->
+<a href="https://github.com/viosey/hexo-theme-material"  class="sidebar-footer-text-a" target="_blank">
+	<div class="sidebar-text mdl-button mdl-js-button mdl-js-ripple-effect sidebar-footer-text-div" data-upgraded=",MaterialButton,MaterialRipple">
+		 Material
+		<span class="sidebar-badge badge-circle">i</span>
+	</div>
+</a>
+
+<!-- Help & Support -->
+<!--
+<a href="mailto:hiviosey@gmail.com" class="sidebar-footer-text-a">
+    <div class="sidebar-text mdl-button mdl-js-button mdl-js-ripple-effect sidebar-footer-text-div" data-upgraded=",MaterialButton,MaterialRipple">
+		sidebar.help
+		<span class="mdl-button__ripple-container">
+			<span class="mdl-ripple"></span>
+		</span>
+	</div>
+</a>
+-->
+
+<!-- Feedback -->
+<!--
+<a href="https://github.com/viosey/hexo-theme-material/issues" target="_blank" class="sidebar-footer-text-a">
+    <div class="sidebar-text mdl-button mdl-js-button mdl-js-ripple-effect sidebar-footer-text-div" data-upgraded=",MaterialButton,MaterialRipple">
+         sidebar.feedback
+                    <span class="mdl-button__ripple-container"><span class="mdl-ripple"></span></span></div>
+</a>
+-->
+
+<!-- Abount Theme -->
+<!--
+<a href="https://blog.viosey.com/index.php/Material.html" target="_blank" class="sidebar-footer-text-a">
+    <div class="sidebar-text mdl-button mdl-js-button mdl-js-ripple-effect sidebar-footer-text-div" data-upgraded=",MaterialButton,MaterialRipple">
+         sidebar.about_theme
+        <span class="mdl-button__ripple-container"><span class="mdl-ripple"></span></span></div>
+</a>-->
+
+	</div>
+    
+    <!-- Sidebar Sponsor -->
+    
+
+
+</aside>
+
+				
+				
+				
+					<!-- Footer Top Button -->
+					<div class="toTop-wrap">
+    <a href="#top" class="toTop">
+        <i class="material-icons footer_top-i">expand_less</i>
+    </a>
+</div>
+				
+				
+				<!--Footer-->
+<footer class="mdl-mini-footer" id="bottom">
+	
+	
+		<!-- Paradox Footer Left Section -->
+		<div class="mdl-mini-footer--left-section sns-list">
+    <!-- Twitter -->
+    
+    <a href="https://twitter.com/liudaox" target="view_window"><button class="mdl-mini-footer--social-btn social-btn" style="background-image: url(/img/footer/footer_ico-twitter.png);">
+        <span class="visuallyhidden">Twitter</span>
+    </button></a>
+    
+    
+    <!-- Facebook -->
+    
+    <a href="https://www.facebook.com/facebook" target="view_window"><button class="mdl-mini-footer--social-btn social-btn" style="background-image: url(/img/footer/footer_ico-facebook.png);">
+        <span class="visuallyhidden">Facebook</span>
+    </button></a>
+    
+    
+    <!-- Google + -->
+    
+    <a href="https://www.google.com/" target="view_window"><button class="mdl-mini-footer--social-btn social-btn" style="background-image: url(/img/footer/footer_ico-gplus.png);">
+        <span class="visuallyhidden">Google Plus</span>
+    </button></a>
+    
+    
+    <!-- Weibo -->
+    
+    
+    
+    <!-- Instagram -->
+    
+    
+    
+    <!-- Tumblr -->
+    
+    
+    
+    <!-- Github -->
+    
+    <a href="https://github.com/liudaox" target="view_window"><button class="mdl-mini-footer--social-btn social-btn" style="background-image: url(/img/footer/footer_ico-github.png);">
+        <span class="visuallyhidden">Github</span>
+    </button></a>
+    
+</div>
+
+
+		<!--Copyright-->
+		<div id="copyright">Copyright&nbsp;©&nbsp;<script type="text/javascript">var fd = new Date();document.write(fd.getFullYear());</script>&nbsp;技术杂货铺</div>
+
+		<!-- Paradox Footer Right Section -->
+
+		<!-- 
+		I'm glad you use this theme, the development is no so easy, I hope you can keep the copyright.
+		It will not impact the appearance and can give developers a lot of support :)
+
+		很高兴您使用该主题，开发不易，希望您可以保留一下版权声明。
+		它不会影响美观并可以给开发者很大的支持。 :) 
+		-->
+
+		<div class="mdl-mini-footer--right-section">
+			<div>
+				<div class="footer-develop-div">Powered by <a href="https://hexo.io" target="_blank" class="footer-develop-a">Hexo</a></div>
+				<div class="footer-develop-div">Theme - <a href="https://github.com/viosey/hexo-theme-material" target="_blank" class="footer-develop-a">Material</a></div>
+			</div>
+		</div>
+	
+    
+</footer>
+                
+				<!-- Import File -->
+<script src="/js/highlight.min.js"></script>
+<script src="/js/js.min.js"></script>
+<script src="/js/nprogress.js"></script>
+
+<script type="text/javascript">
+    NProgress.configure({
+        showSpinner: true
+    });
+    NProgress.start();
+    
+    $('#nprogress .bar').css({
+        'background': '#FF4081'
+    });
+    $('#nprogress .peg').css({
+        'box-shadow': '0 0 10px #FF4081, 0 0 15px #FF4081'
+    });
+    $('#nprogress .spinner-icon').css({
+        'border-top-color': '#FF4081',
+        'border-left-color': '#FF4081'
+    });
+    
+    setTimeout(function() {
+        NProgress.done();
+        $('.fade').removeClass('out');
+    }, 800);
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<!-- Swiftye -->
+
+
+<!-- Local Search-->
+
+
+<!-- Window Load-->
+<script>
+    $(window).load(function() {
+        // Post_Toc parent position fixed
+        $(".post-toc-wrap").parent(".mdl-menu__container").css("position", "fixed");
+    });
+</script>
+
+<!-- MathJax Load-->
+
+            </main>
+        </div>
+		
+    </body>
+		
+	
+</html>
